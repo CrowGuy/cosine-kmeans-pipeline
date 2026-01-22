@@ -1,0 +1,39 @@
+data:
+  input: embeddings.npy
+  format: npy
+  mmap: true
+  dtype: float32
+  # raw_mmap 用才需要：
+  # shape: [1000000, 256]
+
+normalize:
+  enabled: true
+  sample_size: 20000
+
+k_select:
+  enabled: true
+  k_list: [512, 768, 1024, 1280, 1400, 1536, 1792, 2048]
+  train_sample: 200000
+  eval_sample: 20000
+  silhouette_eval: 10000
+  stability:
+    enabled: true
+    repeats: 6
+    eval_sample: 50000
+    train_sample: 200000
+
+kmeans:
+  k: 1400
+  niter: 25
+  nredo: 1
+  max_points_per_centroid: 5000
+  use_gpu: true
+
+export:
+  topm: 0
+  full:
+    enabled: true
+    dtype: float32
+    batch: 20000
+    backend: cpu   # 改 gpu 就會用 torch CUDA
+    device: cuda:0
