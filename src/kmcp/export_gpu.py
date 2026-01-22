@@ -11,12 +11,6 @@ def export_full_memmap_gpu(
     out_dtype: str = "float32",
     device: str = "cuda:0",
 ) -> None:
-    """
-    Requires torch + CUDA.
-    Computes dist = 1 - (xb @ cn.T) on GPU, writes to CPU memmap.
-
-    xn, cn should be float32 normalized on CPU before calling.
-    """
     try:
         import torch
     except Exception as e:
@@ -30,16 +24,24 @@ def export_full_memmap_gpu(
     out_dtype_np = np.dtype(out_dtype)
     out = np.memmap(str(out_path), mode="w+", dtype=out_dtype_np, shape=(N, K))
 
-    # Move centroids to GPU once
-    cn_t = torch.from_numpy(cn).to(device=device, dtype=torch.float32).t().contiguous()  # (D,K)
+    torch_device = torch.device(device)
 
-    for i in range(0, N, batch):
-        xb = xn[i:i+batch]  # CPU
-        xb_gpu = torch.from_numpy(xb).to(device=device, dtype=torch.float32, non_blocking=True)
-        sim = xb_gpu @ cn_t                 # (B,K) on GPU
-        dist = 1.0 - sim
-        dist_cpu = dist.to("cpu").numpy()   # float32
-        out[i:i+xb.shape[0]] = dist_cpu.astype(out_dtype_np, copy=False)
+    with torch.no_grad():
+        # centroids^T on GPU once: (D,K)
+        cn_t = torch.from_numpy(cn).to(device=torch_device, dtype=torch.float32).t().contiguous()
+
+        for i in range(0, N, batch):
+            xb = xn[i:i+batch]  # CPU float32
+
+            # pinned memory -> faster H2D
+            xb_cpu = torch.from_numpy(xb).pin_memory()
+            xb_gpu = xb_cpu.to(device=torch_device, dtype=torch.float32, non_blocking=True)
+
+            sim = xb_gpu @ cn_t
+            dist = 1.0 - sim
+
+            dist_cpu = dist.to("cpu").numpy()  # float32
+            out[i:i+xb.shape[0]] = dist_cpu.astype(out_dtype_np, copy=False)
 
     out.flush()
     meta = {

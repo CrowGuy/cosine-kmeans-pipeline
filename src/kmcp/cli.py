@@ -140,6 +140,8 @@ def train(
     seed: int = typer.Option(123, "--seed"),
     verbose: bool = typer.Option(False, "--verbose"),
 ):
+    import faiss
+    typer.echo(f"faiss GPUs visible: {faiss.get_num_gpus()}")
     """Train FAISS KMeans and save centroids.npy."""
     cfg = _load_config(config)
     out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
